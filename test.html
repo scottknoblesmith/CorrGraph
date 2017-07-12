@@ -1,0 +1,698 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>CorrGraph</title>
+    <meta name="description" content="Interactive demonstration of physics layout features by the ForceDirectedLayout class." />
+    <!-- Copyright 1998-2017 by Northwoods Software Corporation. -->
+    <meta charset="UTF-8">
+    <style type="text/css">
+        /* CSS for the traditional context menu */
+        #contextMenu {
+            z-index: 300;
+            position: absolute;
+            left: 5px;
+            border: 1px solid #444;
+            background-color: #F5F5F5;
+            display: none;
+            box-shadow: 0 0 10px rgba( 0, 0, 0, .4 );
+            font-size: 12px;
+            font-family: sans-serif;
+            font-weight: bold;
+        }
+
+        #contextMenu ul {
+            list-style: none;
+            top: 0;
+            left: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        #contextMenu li a {
+            position: relative;
+            min-width: 60px;
+            color: #444;
+            display: inline-block;
+            padding: 6px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #contextMenu li:hover {
+            background: #CEDFF2;
+            color: #EEE;
+        }
+
+        #contextMenu li ul li {
+            display: none;
+        }
+
+        #contextMenu li ul li a {
+            position: relative;
+            min-width: 60px;
+            padding: 6px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        #contextMenu li:hover ul li {
+            display: block;
+            margin-left: 0;
+            margin-top: 0;
+        }
+    </style>
+
+    <script src="assets/js/go-debug.js"></script>
+    <script src="assets/js/goSamples.js"></script>
+    <script id="code">
+        go.licenseKey ="73fe4fe6b71c28c702d95d76423d6cbc5cf07f21de8349a00c541ca7ea5c6e17208bf87f598389c1d6ab1aa84a7ec3d9df906b2e95450c3fb73786dd42e4d5fbe06474b2135c418da10074cbc9af2aa5ac6a61f497e571a288288de0fbabc29c5af7f4cb4bcd";
+
+        // define a custom ForceDirectedLayout for this sample
+
+        function DemoForceDirectedLayout() {
+            go.ForceDirectedLayout.call(this);
+        }
+        go.Diagram.inherit(DemoForceDirectedLayout, go.ForceDirectedLayout);
+        // Override the makeNetwork method to also initialize
+        // ForceDirectedVertex.isFixed from the corresponding Node.isSelected.
+        /** @override */
+        DemoForceDirectedLayout.prototype.makeNetwork = function(coll) {
+            // call base method for standard behavior
+            var net = go.ForceDirectedLayout.prototype.makeNetwork.call(this, coll);
+            net.vertexes.each(function(vertex) {
+                var node = vertex.node;
+                if (node !== null) vertex.isFixed = node.isSelected;
+            });
+            return net;
+        };
+        //taken from fd-interactive
+        DemoForceDirectedLayout.prototype.isFixed = function(v) {
+            return v.node.isSelected;
+        };
+
+        var myDiagram = null;
+        var $ = null;
+
+
+
+        // end DemoForceDirectedLayout class
+        function init() {
+            //if (window.goSamples) goSamples();
+            $ = go.GraphObject.make;  // for conciseness in defining templates
+
+            var yellowgrad = $(go.Brush, "Linear", {0: "rgb(254, 201, 0)", 1: "rgb(254, 162, 0)"});
+            var greengrad = $(go.Brush, "Linear", {0: "#98FB98", 1: "#9ACD32"});
+            var bluegrad = $(go.Brush, "Linear", {0: "#B0E0E6", 1: "#87CEEB"});
+            var redgrad = $(go.Brush, "Linear", {0: "#C45245", 1: "#871E1B"});
+            var whitegrad = $(go.Brush, "Linear", {0: "#F0F8FF", 1: "#E6E6FA"});
+            var bigfont = "bold 13pt Arial";
+            var smallfont = "bold 11pt Arial";
+
+            function textStyle() {
+                return {
+                    margin: 6,
+                    wrap: go.TextBlock.WrapFit,
+                    textAlign: "center",
+                    editable: true,
+                    font: bigfont
+                };
+            }
+
+
+            myDiagram =
+                $(go.Diagram, "myDiagramDiv",  // must be the ID or reference to div
+                    {
+                        initialContentAlignment: go.Spot.Center, // start everything in the middle of the viewport
+                        initialAutoScale: go.Diagram.Uniform,  // zoom to make everything fit in the viewport
+                        // have mouse wheel events zoom in and out instead of scroll up and down
+                        "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
+                        allowDrop: true,  // support drag-and-drop from the palette
+                        layout: new DemoForceDirectedLayout()  // use custom layout
+                        // other Layout properties are set by the layout function, defined below
+                    });
+
+
+            // read in the JSON-format data from the "mySavedModel" element
+            //load();
+            //layout();
+            // This is the actual HTML context menu:
+            var cxElement = document.getElementById("contextMenu");
+
+            // Since we have only one main element, we don't have to declare a hide method,
+            // we can set mainElement and GoJS will hide it automatically
+            var myContextMenu =
+                $(go.HTMLInfo, {
+                    show: showContextMenu,
+                    mainElement: cxElement
+                });
+
+
+            // define the Node template
+            myDiagram.nodeTemplate =
+                $(go.Node, "Auto",
+                    {
+                        contextMenu: myContextMenu,
+                        // make sure the Node.location is different from the Node.position
+                        locationSpot: go.Spot.Center
+                    },
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: "lightgray",
+                            stroke: null,
+                            desiredSize: new go.Size(40, 40),
+                            portId: "",
+                            fromLinkable: true, fromLinkableDuplicates: true,
+                            toLinkable: true, toLinkableDuplicates: true,
+                            cursor: "pointer"
+                        },
+                        new go.Binding("fill", "fill")),
+                    $(go.TextBlock,
+                        {
+                            font: "bold 11pt arial",
+                            editable: true,
+                            cursor: "move",
+                            stroke: "black",
+                            margin: 6
+                        },  // editing the text automatically updates the model data
+                        new go.Binding("text", "text").makeTwoWay()));
+
+
+            myDiagram.groupTemplate =
+                $(go.Group, go.Panel.Auto,
+                    { isSubGraphExpanded: false,  // only show the Group itself, not any of its members
+                        ungroupable: true,
+                        mouseDrop: finishDrop},  // allow the ExternalObjectsDropped event handler to ungroup
+                    // the members to be top-level parts, via a command
+                    $(go.Shape, "ellipse",  // the rectangular shape around the members
+                        { fill: "lightgray", stroke: "gray", strokeWidth: 1, desiredSize: new go.Size(30, 30)}),
+                    $(go.Placeholder, { alignment: go.Spot.TopCenter }),
+                    $(go.TextBlock,
+                        { font: "bold 8pt arial", margin: 10 },
+                        new go.Binding("text", "text"))
+
+                );
+            // Upon a drop onto a Group, we try to add the selection as members of the Group.
+            // Upon a drop onto the background, or onto a top-level Node, make selection top-level.
+            // If this is OK, we're done; otherwise we cancel the operation to rollback everything.
+            function finishDrop(grp) {
+                var ok = (grp !== null
+                    ? grp.addMembers(grp.diagram.selection, true): grp=null)
+                if (!ok) e.diagram.currentTool.doCancel();
+            }
+
+            //More Node Templates
+            myDiagram.nodeTemplateMap.add("C13",
+                $(go.Node, "Auto",
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: "black",
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "pointer", fromEndSegmentLength: 40
+                        },
+                        new go.Binding("fill", "color")),
+                    $(go.TextBlock, "C", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "whitesmoke",
+                            editable: true
+                        },
+                        new go.Binding("text", "text").makeTwoWay())
+                )
+            );
+
+            myDiagram.nodeTemplateMap.add("H1",
+                $(go.Node, "Auto",
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: bluegrad,
+                            stroke: null,
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "pointer"
+                        },
+                        new go.Binding("fill", "color")),
+                    $(go.TextBlock, "H", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "black",
+                            editable: true
+                        },
+                        new go.Binding("text", "text").makeTwoWay())
+                )
+            );
+
+            myDiagram.nodeTemplateMap.add("CH",
+                $(go.Node, "Auto",
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: bluegrad,
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "pointer", fromEndSegmentLength: 40
+                        },
+                        new go.Binding("fill", "color")),
+                    $(go.TextBlock, "H", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "whitesmoke",
+                            editable: true
+                        },
+                        new go.Binding("text", "text").makeTwoWay())),
+
+                $(go.Node, "Auto",
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: bluegrad,
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "pointer", fromEndSegmentLength: 40
+                        },
+                        new go.Binding("fill", "color").makeTwoWay()),
+                    $(go.TextBlock, "H", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "black",
+                            editable: true
+                        },
+                        new go.Binding("text", "text").makeTwoWay())
+                )
+            );
+
+            // define the Link template
+            myDiagram.linkTemplate = $(go.Link,
+                {
+                    //curve: go.Link.Bezier, adjusting: go.Link.Stretch,
+                    //reshapable: true,
+                    relinkableFrom: true, relinkableTo: true,
+                    //toShortLength: 3,
+                    selectable: false
+                },
+                new go.Binding("points").makeTwoWay(),
+                //new go.Binding("curviness"),
+                $(go.Shape,
+                    {
+                        strokeWidth: 3,
+                        stroke: "#333"
+                    }
+                )
+            );
+
+
+            // this DiagramEvent is raised when the user has drag-and-dropped something
+            // from another Diagram (a Palette in this case) into this Diagram
+            myDiagram.addDiagramListener("ExternalObjectsDropped", function(e) {
+                // stop any ongoing text editing
+                //if (myDiagram.currentTool instanceof go.TextEditingTool) {
+                //    myDiagram.currentTool.acceptText(go.TextEditingTool.LostFocus);
+                //}
+                // expand any "macros"
+                //myDiagram.group.expandSubGraph(e);
+                myDiagram.commandHandler.ungroupSelection();
+                // start editing the first node that was dropped after ungrouping
+                var tb = myDiagram.selection.first().findObject('TEXT');
+                if (tb) myDiagram.commandHandler.editTextBlock(tb);
+            });
+
+            var palette = $(go.Palette, "palette",
+                // create a new Palette in the HTML DIV element "palette"
+                {
+                    contentAlignment: go.Spot.TopCenter,
+                    // share the template map with the Palette
+                    nodeTemplateMap: myDiagram.nodeTemplateMap,
+                    groupTemplateMap: myDiagram.groupTemplateMap,
+
+                    // everything always fits in viewport
+                    //autoScale: go.Diagram.Uniform,
+
+                    // customize the GridLayout to align the centers of the locationObjects
+                    layout: $(go.GridLayout, {alignment: go.GridLayout.Location})
+
+                }
+            );
+
+//            palette.nodeTemplate =
+//                $(go.Node, "Vertical",
+//                    {locationSpot: go.Spot.Center});
+
+            palette.nodeTemplateMap.add("C13",
+                $(go.Node, "Auto",
+                    {locationSpot: go.Spot.Center},
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: "black",
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "move"
+                        },
+                        new go.Binding("fill", "color")),
+                    $(go.TextBlock, "C", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "whitesmoke",
+                            cursor: "move",
+                            editable: false
+                        },
+                        new go.Binding("text", "text").makeTwoWay())
+                )
+            );
+
+            palette.nodeTemplateMap.add("H1",
+                $(go.Node, "Auto",
+                    {locationSpot: go.Spot.Center},
+                    new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                    $(go.Shape, "Ellipse",
+                        {
+                            fill: bluegrad,
+                            stroke: null,
+                            desiredSize: new go.Size(30, 30),
+                            portId: "", fromLinkable: true, toLinkable: true,
+                            cursor: "move"
+                        },
+                        new go.Binding("fill", "color")),
+                    $(go.TextBlock, "H", textStyle(), {
+                            font: "bold 11pt arial",
+                            stroke: "black",
+                            cursor: "move",
+                            editable: false
+                        },
+                        new go.Binding("text", "text").makeTwoWay())
+                )
+            );
+            palette.model = new go.GraphLinksModel([
+                //{ };  //default node is gray
+                {category: "C13"},
+                {category: "H1"},
+                // a group node, plus three member nodes in that group
+                { key: "CH3", text: "CH3", isGroup: true },
+                { key: "Cb", text: "Cb", color: "gray", group: "CH3", loc: "0 0" },
+                { key: "H3", text: "H3", color: "lightblue", group: "CH3", loc: "150 25" }
+            ],[
+                { from: "Cb", to: "H3" }
+            ]);
+
+
+
+            // { category: "O" },
+                // { category: "N15" },
+                // { category: "F19" },
+                // { category: "Cq", reasonsList: [{}] },
+                //{ category: "CH", addCH: [{}] }
+                // { category: "CH2", reasonsList: [{}] },
+                // { category: "CH3", reasonsList: [{}] },
+                // { category: "C=O", reasonsList: [{}] },
+                // { category: "Comment" }
+
+
+
+            // generate a tree using the default values
+            rebuildGraph();
+        }
+            //Addiing the lines below causes this script to have continuous forceDirected
+            // layout as one changes node locations.  I don't know how it works.
+            // myDiagram.toolManager.draggingTool.doMouseMove = function() {
+            //   go.DraggingTool.prototype.doMouseMove.call(this);
+            //   if (this.isActive) { this.diagram.layout.invalidateLayout(); }
+            // }
+
+
+            function rebuildGraph() {
+                var minNodes = 10; //document.getElementById("minNodes").value;
+                //minNodes = parseInt(minNodes, 10);
+                var maxNodes = 10; //document.getElementById("maxNodes").value;
+                //maxNodes = parseInt(maxNodes, 10);
+                var minChil =  1; //document.getElementById("minChil").value;
+                //minChil = parseInt(minChil, 10);
+                var maxChil = 3; //document.getElementById("maxChil").value;
+                //maxChil = parseInt(maxChil, 10);
+                generateTree(minNodes, maxNodes, minChil, maxChil);
+                //generateTree(12, 12, 0, 3);
+            }
+            function generateTree(minNodes, maxNodes, minChil, maxChil) {
+                //myDiagram.startTransaction("generateTree");
+                // replace the diagram's model's nodeDataArray
+                generateNodes(minNodes, maxNodes);
+                // console.log("here after generateNodes")
+                // replace the diagram's model's linkDataArray
+                generateLinks(minChil, maxChil);
+                // perform a diagram layout with the latest parameters
+
+                layout();
+                //myDiagram.commitTransaction("generateTree");
+            }
+            // Creates a random number of randomly colored nodes.
+            function generateNodes(min, max) {
+                var nodeArray = [];
+                if (isNaN(min) || min < 0) min = 0;
+                if (isNaN(max) || max < min) max = min;
+                var numNodes = Math.floor(Math.random() * (max - min + 1)) + min;
+                for (var i = 0; i < numNodes; i++) {
+                    nodeArray.push({
+                        key: i,
+                        text: i.toString()
+                    });
+                    //console.log("key:" + i + " text:" + i.toString() );
+                }
+                //console.log("here start");
+                //console.log(nodeArray);
+                // randomize the node data
+                for (i = 0; i < nodeArray.length; i++) {
+                    var swap = Math.floor(Math.random() * nodeArray.length);
+                    var temp = nodeArray[swap];
+                    nodeArray[swap] = nodeArray[i];
+                    nodeArray[i] = temp;
+                    //console.log(temp);
+                }
+                // set the nodeDataArray to this array of objects
+                myDiagram.model.nodeDataArray = nodeArray;
+            }
+            // Takes the random collection of nodes and creates a random tree with them.
+            // Respects the minimum and maximum number of links from each node.
+            // (The minimum can be disregarded if we run out of nodes to link to)
+            function generateLinks(min, max) {
+                if (myDiagram.nodes.count < 2) return;
+                if (isNaN(min) || min < 1) min = 1;
+                if (isNaN(max) || max < min) max = min;
+                var linkArray = [];
+                // make two Lists of nodes to keep track of where links already exist
+                //console.log(myDiagram.model.nodeDataArray);
+                var nit = myDiagram.nodes.iterator;
+//                var nodes = new go.List(go.Node);
+//                //console.log("nit.text" + nodes.elt(1).text);
+//                nodes.addAll(myDiagram.nodes);
+//                console.log("nodeList Size: " + nodes.size);
+                var available = new go.List(go.Node);
+                available.addAll(myDiagram.nodes);
+                //var available = myDiagram.nodes;
+                var children = null;
+                var to = null;
+                //var next = null;
+                var nextKey = null;
+                var toKey = null;
+                var init = null;
+                var fin = null;
+                //for (var i = 0; i < nodes.length; i++) {
+                while (nit.next()){
+                    var next = nit.value;
+                    console.log("next key: " + parseInt(next.data.key,10) + " next value: " + next.data.text);
+                    available.remove(next);
+                    children = Math.floor(Math.random() * (max - min + 1)) + min;
+                    //console.log(children);
+
+                    for (var j = 1; j <= children; j++) {
+                        if (available.length === 0) break;
+                        to = available.elt(0);
+                        available.remove(to);
+                        //console.log()
+                        // get keys from the Node.text strings
+                        nextKey = parseInt(next.data.key,10);
+                        toKey = parseInt(to.data.text,10);
+                        //console.log("from: " + next + " to: " + to + "\n");
+                        console.log("from: " + nextKey + " to: " + toKey + "\n");
+                        linkArray.push({from: nextKey, to: toKey});
+                    }
+                }
+                myDiagram.model.linkDataArray = linkArray;
+            }
+
+
+            function layout() {
+                //myDiagram.startTransaction("changed Layout");
+                console.log(" just entered layout()");
+                var lay = myDiagram.layout;
+                //console.log("here after mydiagram.layout" + lay);
+                var maxIter = 100; //document.getElementById("maxIter").value;
+                //maxIter = parseInt(maxIter, 10);
+                lay.maxIterations = maxIter;
+                var epsilon = 1; //document.getElementById("epsilon").value;
+                //epsilon = parseFloat(epsilon, 10);
+                lay.epsilon = epsilon;
+                var infinity = 1000; //document.getElementById("infinity").value;
+                //infinity = parseFloat(infinity, 10);
+                lay.infinity = infinity;
+                var arrangement = "100 100"; //document.getElementById("arrangement").value;
+                var arrangementSpacing = new go.Size();
+                arrangement = arrangement.split(" ", 2);
+                arrangementSpacing.width = parseFloat(arrangement[0]); //base 10
+                arrangementSpacing.height = parseFloat(arrangement[1]);
+                lay.arrangementSpacing = arrangementSpacing;
+                var charge = 100; //document.getElementById("charge").value;
+                //charge = parseFloat(charge, 10);
+                lay.defaultElectricalCharge = 100;
+                var mass = 10; //document.getElementById("mass").value;
+                //mass = parseFloat(mass, 10);
+                lay.defaultGravitationalMass = 1;
+                var stiffness = 0.0010; //document.getElementById("stiffness").value;
+                //stiffness = parseFloat(stiffness, 10);
+                lay.defaultSpringStiffness = .05;
+                var length = 50; //document.getElementById("length").value;
+                //length = parseFloat(length, 10);
+                lay.defaultSpringLength = 50;
+                //myDiagram.commitTransaction("changed Layout");
+            }
+
+
+
+
+            myDiagram.contextMenu = myContextMenu;
+            // We don't want the div acting as a context menu to have a (browser) context menu!
+            cxElement.addEventListener("contextmenu",
+                function(e) {
+                    e.preventDefault();
+                    return false;
+                },
+                false
+            );
+
+            function showContextMenu(obj, diagram, tool) {
+                // Show only the relevant buttons given the current state.
+                var cmd = diagram.commandHandler;
+                document.getElementById("cut").style.display = cmd.canCutSelection() ? "block" : "none";
+                document.getElementById("copy").style.display = cmd.canCopySelection() ? "block" : "none";
+                document.getElementById("paste").style.display = cmd.canPasteSelection() ? "block" : "none";
+                document.getElementById("delete").style.display = cmd.canDeleteSelection() ? "block" : "none";
+                document.getElementById("color").style.display = (obj !== null ? "block" : "none");
+
+                // Now show the whole context menu element
+                cxElement.style.display = "block";
+                // we don't bother overriding positionContextMenu, we just do it here:
+                var mousePt = diagram.lastInput.viewPoint;
+                cxElement.style.left = mousePt.x + "px";
+                cxElement.style.top = mousePt.y + "px";
+            }
+
+
+
+
+
+
+            // Update the layout from the controls.
+            // Changing the properties will invalidate the layout.
+
+
+         // END init()  // END init()  // END init()
+
+
+
+
+
+        function cxcommand(event, val) {
+            if (val === undefined) val = event.currentTarget.id;
+            var diagram = myDiagram;
+            switch (val) {
+                case "cut": diagram.commandHandler.cutSelection(); break;
+                case "copy": diagram.commandHandler.copySelection(); break;
+                case "paste": diagram.commandHandler.pasteSelection(diagram.lastInput.documentPoint); break;
+                case "delete": diagram.commandHandler.deleteSelection(); break;
+                case "color": {
+                    var color = window.getComputedStyle(document.elementFromPoint(event.clientX, event.clientY).parentElement)['background-color'];
+                    //console.log(color);
+                    changeColor(diagram, color); break;
+                }
+            }
+            diagram.currentTool.stopTool();
+        }
+
+        function changeColor(diagram, color) {
+            // Always make changes in a transaction, except when initializing the diagram.
+            //diagram.startTransaction("change color");
+            //console.log(color, diagram);
+            diagram.selection.each(function(node) {
+                if (node instanceof go.Node) {  // ignore any selected Links and simple Parts
+                    // Examine and modify the data, not the Node directly.
+                    var data = node.data;
+                    // Call setDataProperty to support undo/redo as well as
+                    // automatically evaluating any relevant bindings.
+                    diagram.model.setDataProperty(data, "color", color);
+                }
+            });
+        }
+        //diagram.commitTransaction("change color");
+
+
+    </script>
+</head>
+<body onload="init()">
+<div id="sample">
+    <div style="margin-bottom: 5px; padding: 5px; background-color: aliceblue">
+    <span style="display: inline-block; vertical-align: top; padding: 5px">
+      <b>New Tree</b><br />
+
+    </span>
+        <span style="display: inline-block; vertical-align: top; padding: 5px">
+      <b>ForceDirectedLayout Properties</b><br />
+      Max Iterations:
+    </span>
+        <span style="display: inline-block; vertical-align: top; padding: 5px">
+      <b>Vertex Properties</b><br />
+      Electrical Charge: <br />
+      Gravitational Mass:
+    </span>
+        <span style="display: inline-block; vertical-align: top; padding: 5px">
+      <b>Edge Properties</b><br />
+      Spring Stiffness: <br />
+      Spring Length: <br />
+    </span>
+    </div>
+
+    <div style="display: inline-block;">
+        <div style="position: relative;"  >
+    <span style="display: inline-block; vertical-align: top; width:60px">
+      <div id="palette" style="border: solid 1px black; height: 500px"></div>
+    </span>
+            <!-- We make a div to contain both the Diagram div and the context menu (such that they are siblings)
+                 so that absolute positioning works easily.
+                 This DIV containing both MUST have a non-static CSS position (we use position: relative)
+                 so that our context menu's absolute coordinates work correctly. -->
+            <span style="display: inline-block; vertical-align: top; width:85%">
+      <div id="myDiagramDiv" style="background-color: lightcyan; border: solid 1px black; width: 100%; height: 500px"></div>
+    </span>
+            <div id="contextMenu">
+                <ul>
+                    <li id="cut" onclick="cxcommand(event)"><a href="#" target="_self">Cut</a></li>
+                    <li id="copy" onclick="cxcommand(event)"><a href="#" target="_self">Copy</a></li>
+                    <li id="paste" onclick="cxcommand(event)"><a href="#" target="_self">Paste</a></li>
+                    <li id="delete" onclick="cxcommand(event)"><a href="#" target="_self">Delete</a></li>
+                    <li id="color" class="hasSubMenu"><a href="#" target="_self">Color</a>
+                        <ul class="subMenu" id="colorSubMenu">
+                            <li style="background: crimson;" onclick="cxcommand(event, 'color')"><a href="#" target="_self">Red</a></li>
+                            <li style="background: chartreuse;" onclick="cxcommand(event, 'color')"><a href="#" target="_self">Green</a></li>
+                            <li style="background: aquamarine;" onclick="cxcommand(event, 'color')"><a href="#" target="_self">Blue</a></li>
+                            <li style="background: gold;" onclick="cxcommand(event, 'color')"><a href="#" target="_self">Yellow</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <button onclick="layout()">reApply Force</button>
+            <p>
+                For information on <b>ForceDirectedLayout</b> and its properties, see the <a>ForceDirectedLayout</a> documentation page.
+            </p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
